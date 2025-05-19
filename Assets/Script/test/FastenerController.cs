@@ -1,79 +1,89 @@
-using System.Collections;                    // C# ‚Ì IEnumerator ‚È‚Ç‚ğg—p
-using UnityEngine;                           // UnityEngine API
+ï»¿using UnityEngine;
 
 /// <summary>
-/// ƒtƒ@ƒXƒi[–{‘Ì§Œä                                        // ƒNƒ‰ƒX‚Ì–Ú“I
-/// EEdgeCollider2D ‚ÅƒvƒŒƒCƒ„[‚ª“¥‚ß‚é^“¥‚ß‚È‚¢‚ğØ‘Ö   // å‹@”\1
-/// E—¼’[À•W‚ğ‘¼ƒXƒNƒŠƒvƒg‚Ö’ñ‹Ÿ                          // å‹@”\2
-/// TODO: •K—v‚È‚ç‰¹EƒGƒtƒFƒNƒgŠÇ—‚à‚±‚±‚Ås‚¤            // Šg’£ƒ|ƒCƒ“ƒg
+/// ãƒ•ã‚¡ã‚¹ãƒŠãƒ¼æœ¬ä½“ï¼ˆå®Ÿä½“ / è™šä½“ ã‚’ Inspector ã§åˆ‡æ›¿å¯èƒ½ï¼‰
 /// </summary>
-[RequireComponent(typeof(EdgeCollider2D),      // •K{: “¥‚İ”»’è
-                  typeof(SpriteRenderer))]     // •K{: ‰Â‹ƒXƒvƒ‰ƒCƒg
+[RequireComponent(typeof(EdgeCollider2D), typeof(SpriteRenderer))]
 public class FastenerController : MonoBehaviour
 {
-    /*===== ŒöŠJ—ñ‹“Œ^ =====*/
-    public enum State { Solid, Ghost }       // Solid=À‘Ì / Ghost=‹•‘Ì
+    /*========= Inspector ã§é¸æŠ =========*/
+    [Header("åˆæœŸçŠ¶æ…‹ (ç·¨é›†ãƒ¢ãƒ¼ãƒ‰ã§å¤‰æ›´å¯)")]
+    [SerializeField] private State stateInEditor = State.Solid;   // ãƒ—ãƒ«ãƒ€ã‚¦ãƒ³è¡¨ç¤º
 
-    /*===== ƒCƒ“ƒXƒyƒNƒ^•\¦ =====*/
-    [Header("ƒXƒ‰ƒCƒh‘¬“x (unit/•b)")]
-    public float slideSpeed = 8f;            // TODO: “ïˆÕ“x•Ê‚É•Ï‚¦‚éê‡‚±‚±‚ğ’²®
+    /*========= åˆ—æŒ™å‹ =========*/
+    public enum State { Solid, Ghost }   // Solidï¼å½“ãŸã‚Šæœ‰åŠ¹ / Ghostï¼å½“ãŸã‚Šç„¡åŠ¹
 
-    /*===== ƒvƒƒpƒeƒB =====*/
-    public State CurrentState { get; private set; } = State.Solid; // Œ»ó‘Ô
+    /*========= ãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿ =========*/
+    [Header("ã‚¹ãƒ©ã‚¤ãƒ‰é€Ÿåº¦")]
+    public float slideSpeed = 8f;        // å–ã£æ‰‹ãŒåˆ©ç”¨ã™ã‚‹å‚è€ƒå€¤
 
-    /*=====  =====*/
-    private EdgeCollider2D edgeCol;          // “¥‚ß‚éƒRƒ‰ƒCƒ_[
-    private SpriteRenderer sr;               // “§–¾“x•ÏX—p
+    /*========= ãƒ—ãƒ­ãƒ‘ãƒ†ã‚£ =========*/
+    public State CurrentState { get; private set; }
 
-    /*----------------- ƒ‰ƒCƒtƒTƒCƒNƒ‹ -----------------*/
-    void Awake()                             // ƒQ[ƒ€ŠJn‚Éˆê“xŒÄ‚Î‚ê‚é
+    /*========= ã‚­ãƒ£ãƒƒã‚·ãƒ¥ =========*/
+    EdgeCollider2D edgeCol;              // è¸ã¿åˆ¤å®š
+    SpriteRenderer sr;                   // é€æ˜åº¦å¤‰æ›´
+
+    /*--------------------------------------------------------------
+     *  OnValidate : ã‚¨ãƒ‡ã‚£ã‚¿ä¸Šã§å€¤ãŒå¤‰ã‚ã£ãŸã‚‰å³åæ˜ 
+     *------------------------------------------------------------*/
+#if UNITY_EDITOR
+    void OnValidate()
     {
-        edgeCol = GetComponent<EdgeCollider2D>(); // Component æ“¾
+        // ã¾ã  Awake å‰ã®ã“ã¨ãŒã‚ã‚‹ã®ã§æ¯å› GetComponent
+        if (edgeCol == null) edgeCol = GetComponent<EdgeCollider2D>();
+        if (sr      == null) sr      = GetComponent<SpriteRenderer>();
+
+        SetState(stateInEditor, true);   // å¼·åˆ¶åæ˜ 
+    }
+#endif
+
+    /*--------------------------------------------------------------*/
+    void Awake()
+    {
+        edgeCol = GetComponent<EdgeCollider2D>();
         sr = GetComponent<SpriteRenderer>();
-
-        if (edgeCol == null)                 // Error ƒ`ƒFƒbƒN
-            Debug.LogError("[Fastener] EdgeCollider2D ‚ªŒ©‚Â‚©‚è‚Ü‚¹‚ñ");
-
-        SetState(State.Solid, true);         // ‰Šú‰»iÀ‘Ìó‘Ôj
     }
 
-    /*----------------- ŒöŠJ API -----------------*/
-    /// <summary>À‘Ì?‹•‘Ì‚ğƒgƒOƒ‹‚·‚é</summary>
+    void Start()
+    {
+        // ã‚²ãƒ¼ãƒ é–‹å§‹æ™‚ã« Inspector ã§è¨­å®šã•ã‚ŒãŸçŠ¶æ…‹ã§åˆæœŸåŒ–
+        SetState(stateInEditor, true);
+    }
+
+    /*--------------------------------------------------------------
+     *  å…¬é–‹ãƒ¡ã‚½ãƒƒãƒ‰ : çŠ¶æ…‹ãƒˆã‚°ãƒ«
+     *------------------------------------------------------------*/
     public void Toggle()
     {
-        // TODO: SE Ä¶‚âƒAƒjƒØ‘Ö‚ğ’Ç‰Á‚µ‚½‚¢ê‡‚±‚±‚Å
         SetState(CurrentState == State.Solid ? State.Ghost : State.Solid);
     }
 
-    /*----------------- ó‘Ôİ’è -----------------*/
-    private void SetState(State newState, bool force = false)
+    /*--------------------------------------------------------------
+     *  å†…éƒ¨å®Ÿè£… : çŠ¶æ…‹é©ç”¨
+     *------------------------------------------------------------*/
+    void SetState(State newState, bool force = false)
     {
-        if (!force && newState == CurrentState) return; // •Ï‰»‚È‚µ‚È‚çI—¹
+        if (!force && newState == CurrentState) return;
 
-        CurrentState = newState;            // ó‘ÔXV
+        CurrentState = newState;
 
-        edgeCol.enabled = (newState == State.Solid); // À‘Ì‚È‚ç“–‚½‚è—LŒø
+        // ã‚³ãƒ©ã‚¤ãƒ€ãƒ¼æœ‰åŠ¹ï¼ç„¡åŠ¹
+        edgeCol.enabled = (newState == State.Solid);
 
-        // ƒXƒvƒ‰ƒCƒg“§‰ß“x’²®iÀ‘Ì=•s“§–¾ / ‹•‘Ì=”¼“§–¾j
-        var c = sr.color;                   // Œ»İ‚ÌFæ“¾
+        // ã‚¹ãƒ—ãƒ©ã‚¤ãƒˆé€æ˜åº¦
+        var c = sr.color;
         c.a = (newState == State.Solid ? 1f : 0.4f);
         sr.color = c;
-
-        // TODO: ƒp[ƒeƒBƒNƒ‹“™‚Ì‰‰o‚ğ’Ç‰Á‚·‚é‚È‚ç‚±‚Ì‰º‚É
     }
 
-    /*-----------------  -----------------*/
-    /// <summary>
-    /// EdgeCollider2D ‚Ì—¼’[ƒ[ƒ‹ƒhÀ•W‚ğ•Ô‚·
-    /// ‘¼ƒXƒNƒŠƒvƒgiHandleControllerj‚ªƒŒ[ƒ‹I’[‚ğ’m‚é‚½‚ß‚Ég—p
-    /// </summary>
-    public (Vector2 p0, Vector2 p1) GetEndPoints()
+    /*--------------------------------------------------------------
+     *  ãƒ¬ãƒ¼ãƒ«ä¸¡ç«¯åº§æ¨™ã‚’è¿”ã™ï¼ˆå–ã£æ‰‹ãŒä½¿ç”¨ï¼‰
+     *------------------------------------------------------------*/
+    public (Vector2, Vector2) GetEndPoints()
     {
-        if (edgeCol == null)                // –œ‚ªˆê null ‚Ìê‡
-            return (Vector2.zero, Vector2.zero);
-
-        Vector2 p0 = transform.TransformPoint(edgeCol.points[0]);       // 0”Ô–Ú
-        Vector2 p1 = transform.TransformPoint(edgeCol.points[^1]);      // ÅŒã
+        Vector2 p0 = transform.TransformPoint(edgeCol.points[0]);
+        Vector2 p1 = transform.TransformPoint(edgeCol.points[^1]);
         return (p0, p1);
     }
 }

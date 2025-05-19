@@ -1,129 +1,126 @@
 using UnityEngine;
+using UnityEngine.UI;
 
 /// <summary>
-/// プレイヤー操作：移動・ジャンプ・取っ手操作
+/// 玩家控制：左右移? / 跳? / 拉?交互  
+/// ?按 & ?按 F 都要求玩家所持 keyId 与 Handle.requiredKeyId 相等
 /// </summary>
 [RequireComponent(typeof(Rigidbody2D))]
 public class PlayerController : MonoBehaviour
 {
-    [Header("移動速度")]
-    public float moveSpeed = 5f;
+    [Header("移?参数")] public float moveSpeed = 5f;
+    [Header("跳?初速度")] public float jumpForce = 12f;
 
-    [Header("ジャンプ力")]
-    public float jumpForce = 12f;
-
-    [Header("Fキー設定")]
+    [Header("F??置")]
     public KeyCode interactKey = KeyCode.F;
-    public float holdThreshold = 0.25f;      // 長押し判定時間
+    public float holdThreshold = 0.25f;
 
-    [Header("接地判定")]
+    [Header("接地??")]
     public Transform groundCheck;
-    public float groundCheckRadius = 0.08f;
+    public float groundCheckRadius = .08f;
     public LayerMask groundMask;
 
-    private Rigidbody2D rb;
-    private bool isGrounded = false;
-    private bool isSliding = false;
+    [Header("当前?匙 keyId")]
+    public string currentItemKey = "";          // "" 表示尚未持有
 
-    private HandleController currentHandle;
+    /* UI（可?） */
+    public Image hookIcon;
+    public Sprite iconGot, iconNot;
 
-    private bool isPressingF = false;
-    private float fPressedTime = 0f;
-    private bool slideTriggered = false;
+    /* 内部?量 */
+    Rigidbody2D rb;
+    bool isGrounded, isSliding;
+    HandleController currentHandle;
+    bool isPressingF; float fTime; bool slideTrig;
 
-    void Awake()
+    void Start()
     {
         rb = GetComponent<Rigidbody2D>();
-        rb.freezeRotation = true;
-
-        if (groundCheck == null)
-            groundCheck = transform.Find("groundCheck");
+        if (groundCheck == null) groundCheck = transform.Find("groundCheck");
+        if (hookIcon && iconNot) hookIcon.sprite = iconNot;
     }
 
     void Update()
     {
-        /*―― 接地判定 ――*/
-        isGrounded = Physics2D.OverlapCircle(
-            groundCheck.position, groundCheckRadius, groundMask);
+        /* ---- 接地?? ---- */
+        isGrounded = Physics2D.OverlapCircle(groundCheck.position, groundCheckRadius, groundMask);
 
-        /*―― 水平移動 / ジャンプ ――*/
+        /* ---- 移? / 跳? ---- */
         if (!isSliding)
         {
-            float h = 0;
-            if (Input.GetKey(KeyCode.A)) h = -1;
-            else if (Input.GetKey(KeyCode.D)) h = 1;
-
+            float h = Input.GetKey(KeyCode.D) ? 1 :
+                      Input.GetKey(KeyCode.A) ? -1 : 0;
             rb.velocity = new Vector2(h * moveSpeed, rb.velocity.y);
-
             if (Input.GetKeyDown(KeyCode.Space) && isGrounded)
                 rb.velocity = new Vector2(rb.velocity.x, jumpForce);
         }
-        else
-        {
-            rb.velocity = Vector2.zero;   // スライド中は固定
-        }
+        else rb.velocity = Vector2.zero;
 
-        /*―― Fキー処理 ――*/
+        /* ---- F ??? ---- */
         if (Input.GetKeyDown(interactKey))
         {
-            isPressingF = true;
-            fPressedTime = 0f;
-            slideTriggered = false;
+            isPressingF = true; fTime = 0; slideTrig = false;
         }
 
         if (isPressingF)
         {
-            fPressedTime += Time.deltaTime;
+            fTime += Time.deltaTime;
 
-            // 長押しでプレイヤー付着スライド
-            if (!slideTriggered &&
-                fPressedTime >= holdThreshold &&
-                currentHandle != null &&
-                !currentHandle.isMoving)
+            /* ?按：要求?匙匹配 */
+            if (!slideTrig &&
+                fTime >= holdThreshold &&
+                currentHandle && !currentHandle.isMoving &&
+                currentItemKey == currentHandle.requiredKeyId)
             {
-                slideTriggered = true;
-                isSliding = true;
+                slideTrig = true; isSliding = true;
                 currentHandle.StartMoveWithPlayer(gameObject);
             }
         }
 
         if (Input.GetKeyUp(interactKey))
         {
-            // 短押しで取っ手のみスライド
-            if (!slideTriggered &&
-                fPressedTime < holdThreshold &&
-                currentHandle != null &&
-                !currentHandle.isMoving)
+            /* 短按：同?要求?匙匹配 */
+            if (!slideTrig &&
+                fTime < holdThreshold &&
+                currentHandle && !currentHandle.isMoving &&
+                currentItemKey == currentHandle.requiredKeyId)
             {
                 currentHandle.StartMoveAlone();
             }
 
-            isPressingF = false;
-            fPressedTime = 0f;
+            isPressingF = false; fTime = 0;
         }
 
-        /*―― スライド終了検知 ――*/
-        if (isSliding && currentHandle != null && !currentHandle.isMoving)
-            isSliding = false;
+        /* 滑索?束?? */
+        if (isSliding && currentHandle && !currentHandle.isMoving) isSliding = false;
     }
 
-    /*―― 取っ手のトリガー判定 ――*/
+    /* ---- Trigger ?理 ---- */
     void OnTriggerEnter2D(Collider2D other)
     {
         if (other.CompareTag("Handle"))
         {
-            HandleController hc = other.GetComponent<HandleController>();
-            if (hc != null) currentHandle = hc;
+            currentHandle = other.GetComponent<HandleController>();
+            return;
+        }
+
+        if (other.CompareTag("Item"))
+        {
+            ItemEntity it = other.GetComponent<ItemEntity>();
+            if (it)
+            {
+                currentItemKey = it.keyId;                     // ???匙
+                if (hookIcon && iconGot) hookIcon.sprite = iconGot;
+                Destroy(other.gameObject);
+                Debug.Log($"?得?匙: {currentItemKey}");
+            }
         }
     }
 
     void OnTriggerExit2D(Collider2D other)
     {
-        if (other.CompareTag("Handle"))
-        {
-            HandleController hc = other.GetComponent<HandleController>();
-            if (hc != null && hc == currentHandle)
-                currentHandle = null;
-        }
+        if (other.CompareTag("Handle") &&
+            other.GetComponent<HandleController>() == currentHandle)
+            currentHandle = null;
     }
 }
